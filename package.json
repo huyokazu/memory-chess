@@ -1,0 +1,28 @@
+{
+  "name": "memory-chess",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Memory Chess monorepo: Expo Web/iOS/Android and Express + Socket.IO",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @memory-chess/server dev",
+    "dev:demo": "pnpm --filter @memory-chess/server dev:demo",
+    "dev:web": "pnpm --filter @memory-chess/client web",
+    "start": "pnpm --filter @memory-chess/server start",
+    "build:web": "pnpm --filter @memory-chess/client build:web",
+    "build:all": "pnpm --filter @memory-chess/client exec expo export --platform all --output-dir dist-all",
+    "check": "pnpm --filter @memory-chess/client check",
+    "mobile:ios": "pnpm --filter @memory-chess/client ios",
+    "mobile:android": "pnpm --filter @memory-chess/client android",
+    "test": "pnpm -r --workspace-concurrency=1 test",
+    "test:unit": "pnpm --filter @memory-chess/server test:unit",
+    "test:integration": "pnpm --filter @memory-chess/server test:integration",
+    "test:engine": "pnpm --filter @memory-chess/server test:engine",
+    "db:up": "docker compose -f infra/docker-compose.yml up -d --wait",
+    "db:down": "docker compose -f infra/docker-compose.yml down"
+  }
+}

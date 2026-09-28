@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Memory Chess",
+    "slug": "memory-chess",
+    "version": "1.0.0",
+    "scheme": "memorychess",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.memorychess.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
+    },
+    "android": {
+      "package": "com.memorychess.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "name": "Memory Chess",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-status-bar"
+    ]
+  }
+}
