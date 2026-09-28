@@ -100,6 +100,7 @@ function Shell() {
     if (typeof value === 'string' && /^\d{6}$/.test(value)) { setInviteCode(value); setPage('play'); }
   }, [url]);
   useEffect(() => {
+    if (Platform.OS !== 'android') return;
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
       if (showingGame && room.status !== 'finished') {
         setNotice('Ván đang chơi. Dùng nút đầu hàng hoặc đóng phòng để rời.'); return true;
