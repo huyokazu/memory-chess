@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { Platform, AppState } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { io } from 'socket.io-client';
+import i18n, { translateError } from './i18n';
 
 // Production Web is served by Express on the same origin as Socket.IO/API.
 // Native builds still set EXPO_PUBLIC_API_URL to the public HTTPS backend.
@@ -27,13 +28,18 @@ export async function request(path, { token, body, method = 'GET' } = {}) {
     });
     const data = await response.json();
     if (!response.ok) {
-      const error = new Error(data.error?.message || 'Không thể xử lý yêu cầu.');
+      const error = new Error(data.error?.message || 'Request failed');
       error.status = response.status;
+      error.code = data.error?.code;
       throw error;
     }
     return data;
   } catch (error) {
-    if (error.name === 'AbortError' || error instanceof TypeError) throw new Error('Không kết nối được server. Kiểm tra địa chỉ API và mạng.');
+    if (error.name === 'AbortError' || error instanceof TypeError) {
+      const networkError = new Error('Network request failed');
+      networkError.code = 'NETWORK_ERROR';
+      throw networkError;
+    }
     throw error;
   } finally { clearTimeout(timer); }
 }
@@ -64,7 +70,7 @@ export function SessionProvider({ children }) {
         }
       } catch (error) {
         if (error.status === 401) await storage.remove();
-        if (live) setNotice(error.message);
+        if (live) setNotice(translateError(error));
       } finally { if (live) setReady(true); }
     })();
     return () => { live = false; };
@@ -90,14 +96,14 @@ export function SessionProvider({ children }) {
     socket.on('connect', () => { setConnected(true); setNotice(''); });
     socket.on('disconnect', (reason) => {
       setConnected(false); setQueue(null);
-      if (!invalidSession && reason !== 'io client disconnect') setNotice('Mất kết nối. Đồng hồ vẫn chạy; ứng dụng đang kết nối lại.');
+      if (!invalidSession && reason !== 'io client disconnect') setNotice(i18n.t('errors.reconnecting'));
     });
     socket.on('connect_error', (error) => {
       setConnected(false);
-      if (error.data?.code === 'UNAUTHORIZED') clearSession('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
-      else setNotice('Chưa kết nối được server. Đang thử lại…');
+      if (error.data?.code === 'UNAUTHORIZED') clearSession(i18n.t('errors.unauthorized'));
+      else setNotice(i18n.t('errors.retrying'));
     });
-    socket.on('session:replaced', () => clearSession('Tài khoản đã được mở trên thiết bị khác. Hãy đăng nhập lại để tiếp tục tại đây.'));
+    socket.on('session:replaced', () => clearSession(i18n.t('errors.sessionReplaced')));
     socket.on('profile', setUser);
     socket.on('queue:state', (value) => setQueue(value.searching ? value : null));
     socket.on('game:state', state);
@@ -107,8 +113,8 @@ export function SessionProvider({ children }) {
       clockRef.current.offset = clock.serverNow - Date.now();
       setRoom((current) => current && current.id === clock.roomId ? { ...current, deadline: clock.deadline, turn: clock.turn } : current);
     });
-    socket.on('room:closed', () => { setRoom(null); setNotice('Phòng đã đóng hoặc hết hạn.'); });
-    socket.on('room:failed', () => { setRoom(null); setQueue(null); setNotice('Không thể bắt đầu trận. Vui lòng thử lại.'); });
+    socket.on('room:closed', () => { setRoom(null); setNotice(i18n.t('errors.roomClosed')); });
+    socket.on('room:failed', () => { setRoom(null); setQueue(null); setNotice(i18n.t('errors.roomFailed')); });
     socket.connect();
     const subscription = AppState.addEventListener('change', (value) => {
       if (value !== 'active') return;
@@ -137,10 +143,10 @@ export function SessionProvider({ children }) {
   const send = useCallback((event, payload = {}) => {
     return new Promise((resolve, reject) => {
       const socket = socketRef.current;
-      if (!socket?.connected) return reject(new Error('Chưa kết nối với server.'));
+      if (!socket?.connected) return reject(Object.assign(new Error('Not connected'), { code: 'NOT_CONNECTED' }));
       socket.timeout(15_000).emit(event, payload, (error, response) => {
-        if (error) return reject(new Error('Server chưa phản hồi. Trạng thái sẽ được đồng bộ lại khi có kết nối.'));
-        if (!response?.ok) return reject(new Error(response?.error?.message || 'Thao tác không thành công.'));
+        if (error) return reject(Object.assign(new Error('Server timeout'), { code: 'SERVER_TIMEOUT' }));
+        if (!response?.ok) return reject(Object.assign(new Error('Request failed'), { code: response?.error?.code }));
         resolve(response.data);
       });
     });

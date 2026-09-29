@@ -6,9 +6,10 @@ import Piece from './Piece';
 import WoodSurface from './WoodSurface';
 import { playedPlies } from '../memoryVisibility';
 import MovingPieces from './MovingPieces';
+import { useTranslation } from 'react-i18next';
 
 const NOOP = () => {};
-function Square({ square, row, col, piece, size, visible, selected, onTap, onDrop, interactive, flipped }) {
+function Square({ square, row, col, piece, size, visible, selected, onTap, onDrop, interactive, flipped, t }) {
   const [dragging, setDragging] = useState(false);
   const [delta, setDelta] = useState({ x: 0, y: 0 });
   const start = useRef({ x: 0, y: 0 });
@@ -40,7 +41,7 @@ function Square({ square, row, col, piece, size, visible, selected, onTap, onDro
       {piece && <Piece type={piece.type} color={piece.color} size={size * 0.98} />}
     </View>
     <View {...responder.panHandlers} accessible accessibilityRole="button"
-      accessibilityLabel={visible && piece ? `${square}, ${piece.color === 'w' ? 'trắng' : 'đen'} ${piece.type}` : `Ô ${square}`}
+      accessibilityLabel={visible && piece ? t('game.pieceSquare', { square, color: t(piece.color === 'w' ? 'game.white' : 'game.black'), piece: t(`game.promotionPieces.${piece.type}`) }) : t('game.square', { square })}
       accessibilityState={{ selected, disabled: !interactive }}
       onAccessibilityTap={() => interactive && onTap(square)}
       {...(Platform.OS === 'web' ? { tabIndex: interactive ? 0 : -1, onKeyDown: (event) => { if (interactive && ['Enter', ' '].includes(event.key)) { event.preventDefault(); onTap(square); } } } : {})}
@@ -49,6 +50,7 @@ function Square({ square, row, col, piece, size, visible, selected, onTap, onDro
 }
 
 function ChessBoard({ fen, ply, width, color = 'w', visible = true, selected, onTap = NOOP, onDrop = NOOP, interactive = false, transition = null, onAnimationComplete = NOOP }) {
+  const { t } = useTranslation();
   const chess = useMemo(() => new Chess(fen), [fen]);
   const flipped = color === 'b';
   // Even a stale visible:false snapshot may never hide an untouched new game.
@@ -66,7 +68,7 @@ function ChessBoard({ fen, ply, width, color = 'w', visible = true, selected, on
   const size = inner / 8;
   const depth = Math.max(5, Math.round(width * 0.015));
   const labelStyle = { position: 'absolute', color: '#ecd5ad', fontSize: Math.max(8, width * 0.018), fontWeight: '600', textAlign: 'center' };
-  return <View accessibilityLabel="Bàn cờ Memory Chess" style={{ width, height: width + depth, marginBottom: 8,
+  return <View accessibilityLabel={t('game.boardLabel')} style={{ width, height: width + depth, marginBottom: 8,
     ...(Platform.OS === 'web' ? { boxShadow: '0 20px 38px #0008, 0 4px 8px #0008' } : { shadowColor: '#000', shadowOffset: { width: 0, height: 15 }, shadowOpacity: 0.55, shadowRadius: 18, elevation: 16 }) }}>
     <View pointerEvents="none" style={{ position: 'absolute', top: depth, left: 0, width, height: width, backgroundColor: '#382315', borderRadius: 3, borderBottomWidth: 2, borderBottomColor: '#1c140e' }} />
     <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, width, height: width, borderRadius: 2, overflow: 'hidden' }}><WoodSurface frame /></View>
@@ -90,7 +92,7 @@ function ChessBoard({ fen, ply, width, color = 'w', visible = true, selected, on
         const col = index % 8;
         const square = String.fromCharCode(97 + (flipped ? 7 - col : col)) + (flipped ? row + 1 : 8 - row);
         const moving = transition?.pieces.some((piece) => piece.from === square);
-        return <Square key={square} {...{ square, row, col, size, flipped }} onTap={handleTap} interactive={interactive && !transition} onDrop={handleDrop} visible={piecesVisible} piece={moving ? undefined : chess.get(square)} selected={selected === square} />;
+        return <Square key={square} {...{ square, row, col, size, flipped, t }} onTap={handleTap} interactive={interactive && !transition} onDrop={handleDrop} visible={piecesVisible} piece={moving ? undefined : chess.get(square)} selected={selected === square} />;
       })}
       {transition && <MovingPieces key={`${transition.id}-${size}-${color}`} {...{ transition, size, flipped }} drag={drag.current?.to === transition.pieces[0].to ? drag.current : null} onComplete={complete} />}
     </View>

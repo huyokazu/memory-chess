@@ -8,23 +8,19 @@ import Piece from '../components/Piece';
 import { memoryVisibility } from '../memoryVisibility';
 import useBoardPlayback from '../hooks/useBoardPlayback';
 import LastMoveCard from '../components/LastMoveCard';
-
-const reasons = {
-  checkmate: 'Chiếu hết', timeout: 'Hết 60 giây', resignation: 'Đầu hàng',
-  stalemate: 'Hết nước đi hợp lệ', threefold_repetition: 'Lặp lại thế cờ 3 lần',
-  insufficient_material: 'Không đủ quân chiếu hết', fifty_move_rule: 'Luật 50 nước',
-  engine_error: 'Bot gặp lỗi — ván đấu bị hủy',
-};
+import { useTranslation } from 'react-i18next';
+import { translateError } from '../i18n';
 
 function PlayerStrip({ player, you, color, turn, online, seconds, finished }) {
+  const { t } = useTranslation();
   return <View style={[ui.row, { justifyContent: 'space-between', paddingVertical: 14 }]}>
     <View style={ui.row}>
       <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: colors.panelAlt, alignItems: 'center', justifyContent: 'center' }}>
         <Piece type="k" color={color} size={30} />
       </View>
       <View style={{ gap: 3 }}>
-        <Text style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>{player.username}{you ? ' · Bạn' : ''}</Text>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>{player.elo} Elo · {player.bot ? 'Stockfish' : online ? 'Đã kết nối' : 'Đang kết nối lại'}</Text>
+        <Text style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>{player.username}{you ? ` · ${t('game.playerYou')}` : ''}</Text>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>{player.elo} Elo · {player.bot ? 'Stockfish' : online ? t('game.connected') : t('game.reconnecting')}</Text>
       </View>
     </View>
     <View style={{ backgroundColor: turn && !finished ? colors.accent : colors.panelAlt, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 14, minWidth: 87 }}>
@@ -36,6 +32,7 @@ function PlayerStrip({ player, you, color, turn, online, seconds, finished }) {
 }
 
 export default function ChessBoardScreen({ onHome }) {
+  const { t } = useTranslation();
   const { room, boardEvents, connected, send, clockRef, setNotice } = useSession();
   const { width, height } = useWindowDimensions();
   const [selected, setSelected] = useState(null);
@@ -66,7 +63,7 @@ export default function ChessBoardScreen({ onHome }) {
     }
     setBusy(true); setError('');
     try { await send('game:move', { roomId: room.id, from, to, ...(promote ? { promotion: promote } : {}) }); setSelected(null); return true; }
-    catch (e) { setError(e.message); return false; }
+    catch (e) { setError(translateError(e, t)); return false; }
     finally { setBusy(false); setPromotion(null); }
   }, [connected, busy, playback.animating, room.id, room.status, room.turn, room.color, chess, send]);
 
@@ -79,7 +76,7 @@ export default function ChessBoardScreen({ onHome }) {
   async function action(event) {
     setBusy(true); setError('');
     try { await send(event, { roomId: room.id }); }
-    catch (e) { setError(e.message); }
+    catch (e) { setError(translateError(e, t)); }
     finally { setBusy(false); setConfirmResign(false); }
   }
 
@@ -87,57 +84,57 @@ export default function ChessBoardScreen({ onHome }) {
     try {
       if (Platform.OS === 'web' && globalThis.navigator?.clipboard) {
         await navigator.clipboard.writeText(room.code);
-        setNotice('Đã sao chép mã phòng.');
-      } else await Share.share({ message: `Cùng chơi Memory Chess! Mã phòng: ${room.code}` });
-    } catch { setNotice(`Mã phòng của bạn: ${room.code}`); }
+        setNotice(t('game.copiedCode'));
+      } else await Share.share({ message: t('game.shareMessage', { code: room.code }) });
+    } catch { setNotice(t('game.roomCodeNotice', { code: room.code })); }
   }
 
   if (room.status === 'waiting' || room.status === 'starting') return <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center', padding: 24, marginTop: 48 }}>
     <View style={[ui.card, { alignItems: 'center', paddingVertical: 44 }]}>
       <Piece type="n" color="w" size={70} />
-      <Pill active>{room.mode === 'hardcore' ? 'HARDCORE MEMORY' : 'STRATEGIC PEEKS'}</Pill>
-      <Text style={ui.title}>{room.status === 'waiting' ? 'Mời một người bạn' : 'Đang chuẩn bị bàn cờ…'}</Text>
-      <Text style={[ui.muted, { textAlign: 'center' }]}>{room.status === 'waiting' ? 'Chia sẻ mã 6 số bên dưới. Ván đấu bắt đầu ngay khi người thứ hai tham gia.' : 'Server đang tạo trận và phân màu ngẫu nhiên.'}</Text>
+      <Pill active>{room.mode === 'hardcore' ? t('game.hardcore') : t('game.peeks')}</Pill>
+      <Text style={ui.title}>{room.status === 'waiting' ? t('game.inviteFriend') : t('game.preparing')}</Text>
+      <Text style={[ui.muted, { textAlign: 'center' }]}>{room.status === 'waiting' ? t('game.inviteDescription') : t('game.preparingDescription')}</Text>
       {room.code && <Text selectable style={{ color: colors.accent, fontFamily: mono, fontSize: 44, letterSpacing: 8 }}>{room.code}</Text>}
       {room.status === 'waiting' && <>
-        <Button onPress={shareCode}>Chia sẻ mã phòng</Button>
-        <Text style={ui.muted}>Phòng có hiệu lực 10 phút · Có tính Elo</Text>
-        <Button variant="secondary" disabled={busy} onPress={() => action('room:leave')}>Đóng phòng</Button>
+        <Button onPress={shareCode}>{t('game.shareRoom')}</Button>
+        <Text style={ui.muted}>{t('game.roomExpiry')}</Text>
+        <Button variant="secondary" disabled={busy} onPress={() => action('room:leave')}>{t('game.closeRoom')}</Button>
       </>}
     </View>
   </View>;
 
   const delta = room.result?.ratingChanges?.[room.color]?.delta;
-  const resultTitle = room.result?.reason === 'engine_error' ? 'Ván đấu bị hủy' : room.result?.winner === null ? 'Ván đấu hòa' : room.result?.winner === room.color ? 'Bạn đã chiến thắng' : 'Ván đấu kết thúc';
+  const resultTitle = room.result?.reason === 'engine_error' ? t('game.gameAborted') : room.result?.winner === null ? t('game.drawTitle') : room.result?.winner === room.color ? t('game.victory') : t('game.gameOver');
 
   const controls = (
       <View style={{ width: '100%', gap: 18 }}>
         <View style={ui.card}>
-          <Text style={ui.label}>{room.mode === 'hardcore' ? '01 / HARDCORE MEMORY' : '02 / STRATEGIC PEEKS'}</Text>
-          <Text style={[ui.title, { fontSize: 26 }]}>{finished ? resultTitle : yourTurn ? 'Đến lượt của bạn.' : 'Đối thủ đang suy nghĩ.'}</Text>
+          <Text style={ui.label}>{room.mode === 'hardcore' ? t('game.hardcoreSectionLabel') : t('game.peeksSectionLabel')}</Text>
+          <Text style={[ui.title, { fontSize: 26 }]}>{finished ? resultTitle : yourTurn ? t('game.yourTurn') : t('game.opponentThinking')}</Text>
           {finished ? <>
-            <Text style={ui.muted}>{reasons[room.result?.reason] || room.result?.reason}</Text>
+            <Text style={ui.muted}>{room.result?.reason ? t(`game.reasons.${room.result.reason}`) : t('common.unknownError')}</Text>
             {delta !== undefined && <Text style={{ color: delta >= 0 ? colors.accent : colors.danger, fontSize: 36, fontWeight: '700' }}>{delta >= 0 ? '+' : ''}{delta} <Text style={{ fontSize: 16 }}>Elo</Text></Text>}
-            <Text style={ui.muted}>{room.result?.ratingStatus === 'pending' ? 'Đang lưu kết quả và cập nhật Elo…' : room.rated ? 'Kết quả đã được lưu.' : 'Ván luyện tập không ảnh hưởng Elo.'}</Text>
-            <Button disabled={room.result?.ratingStatus === 'pending'} onPress={onHome}>Trở về sảnh đấu</Button>
+            <Text style={ui.muted}>{room.result?.ratingStatus === 'pending' ? t('game.savingResult') : room.rated ? t('game.resultSaved') : t('game.botUnrated')}</Text>
+            <Button disabled={room.result?.ratingStatus === 'pending'} onPress={onHome}>{t('game.returnToLobby')}</Button>
           </> : <>
-            <Text style={ui.muted}>{playback.animating && piecesVisible ? 'Đang hoàn tất chuyển động. Các quân sẽ ẩn khi nước đi kết thúc nếu Peek đã hết hiệu lực.' : !hasMoved ? 'Ghi nhớ vị trí các quân. Bàn cờ sẽ ẩn sau chuyển động của nước đi đầu tiên.' : piecesVisible ? 'Peek đang bật. Các quân sẽ ẩn sau nước đi hợp lệ tiếp theo của bạn.' : 'Các quân đã ẩn. Hình dung bàn cờ và tin vào trí nhớ của bạn.'}</Text>
+            <Text style={ui.muted}>{playback.animating && piecesVisible ? t('game.animationHint') : !hasMoved ? t('game.firstMoveHint') : piecesVisible ? t('game.peekHint') : t('game.hiddenHint')}</Text>
             <View style={[ui.row, { justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 18 }]}>
-              <Text style={ui.muted}>Trạng thái bàn cờ</Text>
-              <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 12 }}>{piecesVisible ? 'ĐANG HIỂN THỊ' : 'ĐÃ ẨN QUÂN'}</Text>
+              <Text style={ui.muted}>{t('game.boardStatus')}</Text>
+              <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 12 }}>{piecesVisible ? t('game.visible') : t('game.hidden')}</Text>
             </View>
             {room.mode === 'peeks' && <>
-              <View style={[ui.row, { justifyContent: 'space-between' }]}><Text style={ui.text}>Lượt Peek còn lại</Text><Text style={{ color: colors.text, fontSize: 28, fontFamily: mono }}>{room.peek.remaining}<Text style={{ fontSize: 14, color: colors.muted }}> / 10</Text></Text></View>
+              <View style={[ui.row, { justifyContent: 'space-between' }]}><Text style={ui.text}>{t('game.peeksRemaining')}</Text><Text style={{ color: colors.text, fontSize: 28, fontFamily: mono }}>{room.peek.remaining}<Text style={{ fontSize: 14, color: colors.muted }}> / 10</Text></Text></View>
               <View style={[ui.row, { gap: 5 }]}>{Array.from({ length: 10 }, (_, i) => <View key={i} style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: i < room.peek.remaining ? colors.accent : colors.border }} />)}</View>
-              {wide && <Button disabled={!connected || busy || playback.animating || !hasMoved || room.peek.active || room.peek.remaining === 0} onPress={() => action('game:peek')}>{room.peek.active ? 'Peek đang bật' : 'Peek · Xem bàn cờ'}</Button>}
-              <Text style={[ui.muted, { fontSize: 12 }]}>Chỉ trừ 1 Peek khi bạn đi thành công. Có thể bật trong lượt của đối thủ.</Text>
+              {wide && <Button disabled={!connected || busy || playback.animating || !hasMoved || room.peek.active || room.peek.remaining === 0} onPress={() => action('game:peek')}>{room.peek.active ? t('game.peekActive') : t('game.peekBoard')}</Button>}
+              <Text style={[ui.muted, { fontSize: 12 }]}>{t('game.peekRule')}</Text>
             </>}
           </>}
           {error ? <Text accessibilityRole="alert" style={{ color: colors.danger, lineHeight: 21 }}>{error}</Text> : null}
         </View>
         {!finished && <>
-          <View style={{ paddingHorizontal: 10, gap: 8 }}><Text style={ui.label}>MỘT NƯỚC ĐI. MỘT PHÚT.</Text><Text style={ui.muted}>Mỗi lượt có đúng 60 giây. Mất kết nối hoặc bật Peek không dừng đồng hồ.</Text></View>
-          <Button variant="secondary" disabled={busy || !connected} onPress={() => setConfirmResign(true)}>Đầu hàng</Button>
+          <View style={{ paddingHorizontal: 10, gap: 8 }}><Text style={ui.label}>{t('game.minute')}</Text><Text style={ui.muted}>{t('game.clockRule')}</Text></View>
+          <Button variant="secondary" disabled={busy || !connected} onPress={() => setConfirmResign(true)}>{t('game.resign')}</Button>
         </>}
       </View>
   );
@@ -150,8 +147,8 @@ export default function ChessBoardScreen({ onHome }) {
       </View>
       <View style={{ width: boardWidth }}>
         <View style={[ui.row, { justifyContent: 'space-between', marginBottom: 8 }]}>
-          <Pill active>{room.kind === 'bot' ? 'LUYỆN TẬP' : 'ĐẤU XẾP HẠNG'}</Pill>
-          <Text style={ui.muted}>60 giây / nước</Text>
+          <Pill active>{room.kind === 'bot' ? t('game.practice') : t('game.rated')}</Pill>
+          <Text style={ui.muted}>{t('game.secondsPerMove')}</Text>
         </View>
         <PlayerStrip player={room.players[opponent]} color={opponent} turn={room.turn === opponent} online={room.connected[opponent]} seconds={seconds} finished={finished} />
         <View style={{ padding: 0, borderWidth: 0, borderRadius: 4 }}>
@@ -162,8 +159,8 @@ export default function ChessBoardScreen({ onHome }) {
           <View style={{ height: 3, width: `${seconds / 60 * 100}%`, backgroundColor: seconds <= 10 ? colors.danger : colors.accent, borderRadius: 2 }} />
         </View>
 
-        {!wide && active && room.mode === 'peeks' && <Button style={{ marginTop: 16 }} disabled={!connected || busy || playback.animating || !hasMoved || room.peek.active || room.peek.remaining === 0} onPress={() => action('game:peek')}>{playback.animating && piecesVisible ? 'Đang hoàn tất nước đi…' : room.peek.active ? 'Peek đang bật' : `Peek · ${room.peek.remaining}/10 lượt`}</Button>}
-        <Text style={[ui.muted, { textAlign: 'center', marginTop: 14, fontSize: 12 }]}>{selected ? `Đã chọn ${selected} · Chạm ô đích, hoặc chạm lại để bỏ chọn` : 'Kéo thả hoặc chạm ô xuất phát → ô đích'}</Text>
+        {!wide && active && room.mode === 'peeks' && <Button style={{ marginTop: 16 }} disabled={!connected || busy || playback.animating || !hasMoved || room.peek.active || room.peek.remaining === 0} onPress={() => action('game:peek')}>{playback.animating && piecesVisible ? t('game.finishMove') : room.peek.active ? t('game.peekActive') : t('game.peekRemaining', { count: room.peek.remaining })}</Button>}
+        <Text style={[ui.muted, { textAlign: 'center', marginTop: 14, fontSize: 12 }]}>{selected ? t('game.selectedMove', { square: selected }) : t('game.moveInstruction')}</Text>
         {!wide && <View style={{ marginTop: 24 }}>{controls}</View>}
       </View>
 
@@ -172,18 +169,18 @@ export default function ChessBoardScreen({ onHome }) {
     <Modal visible={Boolean(promotion)} transparent animationType="fade" onRequestClose={() => setPromotion(null)}>
       <View style={{ flex: 1, backgroundColor: '#000A', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
         <View style={[ui.card, { maxWidth: 400, width: '100%' }]}>
-          <Text style={ui.title}>Phong cấp</Text><Text style={ui.muted}>Chọn quân mới. Đồng hồ vẫn đang chạy.</Text>
-          <View style={ui.row}>{['q', 'r', 'b', 'n'].map((type) => <Pressable key={type} accessibilityRole="button" accessibilityLabel={`Phong cấp ${type}`} onPress={() => move(promotion.from, promotion.to, type)} style={{ flex: 1, paddingVertical: 10, backgroundColor: colors.panelAlt, alignItems: 'center', borderRadius: 8 }}><Piece type={type} color={room.color} size={44} /></Pressable>)}</View>
-          <Button variant="secondary" onPress={() => setPromotion(null)}>Hủy</Button>
+          <Text style={ui.title}>{t('game.promotion')}</Text><Text style={ui.muted}>{t('game.promotionHint')}</Text>
+          <View style={ui.row}>{['q', 'r', 'b', 'n'].map((type) => <Pressable key={type} accessibilityRole="button" accessibilityLabel={t('game.promoteTo', { piece: t(`game.promotionPieces.${type}`) })} onPress={() => move(promotion.from, promotion.to, type)} style={{ flex: 1, paddingVertical: 10, backgroundColor: colors.panelAlt, alignItems: 'center', borderRadius: 8 }}><Piece type={type} color={room.color} size={44} /></Pressable>)}</View>
+          <Button variant="secondary" onPress={() => setPromotion(null)}>{t('common.cancel')}</Button>
         </View>
       </View>
     </Modal>
     <Modal visible={confirmResign} transparent animationType="fade" onRequestClose={() => setConfirmResign(false)}>
       <View style={{ flex: 1, backgroundColor: '#000A', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
         <View style={[ui.card, { maxWidth: 400, width: '100%' }]}>
-          <Text style={ui.title}>Đầu hàng ván này?</Text><Text style={ui.muted}>Đối thủ sẽ thắng. {room.rated ? 'Elo của bạn sẽ được cập nhật.' : 'Ván bot không ảnh hưởng Elo.'}</Text>
-          <Button variant="danger" loading={busy} onPress={() => action('game:resign')}>Xác nhận đầu hàng</Button>
-          <Button variant="secondary" onPress={() => setConfirmResign(false)}>Tiếp tục chơi</Button>
+          <Text style={ui.title}>{t('game.confirmResign')}</Text><Text style={ui.muted}>{room.rated ? t('game.resignDescriptionRated') : t('game.resignDescriptionUnrated')}</Text>
+          <Button variant="danger" loading={busy} onPress={() => action('game:resign')}>{t('game.confirmResignButton')}</Button>
+          <Button variant="secondary" onPress={() => setConfirmResign(false)}>{t('game.continuePlaying')}</Button>
         </View>
       </View>
     </Modal>
